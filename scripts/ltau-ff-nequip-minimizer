@@ -1,0 +1,242 @@
+#!python
+import os
+import glob
+import argparse
+import numpy as np
+from ase.io import read
+from ase.optimize import FIRE
+from ase.io.trajectory import Trajectory
+
+from ltau_ff.uq_estimator import UQEstimator
+from ltau_ff.ase_wrapper import NequIPUQWrapper
+from ltau_ff.utils import logs_to_pdfs
+
+from mpi4py import MPI
+
+# Set logging details
+import logging
+import sys
+
+root = logging.getLogger()
+root.setLevel(logging.INFO)
+
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+root.addHandler(handler)
+
+
+def get_args():
+    parser = argparse.ArgumentParser('Perform structure minimization')
+
+    parser.add_argument(
+        '--deployed_model',
+        help='Path to deployed NequIP model',
+        type=str,
+    )
+    parser.add_argument(
+        '--trajectory_folder',
+        help='Path to a folder of ASE trajectory files',
+        type=str
+    )
+    parser.add_argument(
+        '--trajectory_suffix',
+        help='Extension for trajectory files. Used for globbing.',
+        type=str,
+        default='.traj'
+    )
+    parser.add_argument(
+        '--save_estimator_index',
+        help='Path to file in which to save UQEstimator index.',
+        type=str,
+    )
+    parser.add_argument(
+        '--load_estimator_index',
+        help='Path to saved UQEstimator index.',
+        type=str,
+    )
+    parser.add_argument(
+        '--descriptors',
+        help='Path to a numpy array containing the training set descriptors',
+        type=str
+    )
+    parser.add_argument(
+        '--error_logs',
+        help='Path to a .npz file containing error trajectories',
+        type=str
+    )
+    parser.add_argument(
+        '--topk',
+        help='Number of neighbors to average over for UQ metric.',
+        type=int,
+        default=10,
+    )
+    parser.add_argument(
+        '--device',
+        type=str,
+        default='cuda',
+        choices=['cuda', 'cpu']
+    )
+    parser.add_argument(
+        '--index_type',
+        help='Type of FAISS index to use.',
+        type=str,
+        default='IndexFlatL2',
+        choices=['IndexFlatL2', 'HNSW+IVFPQ', 'IndexHNSWFlat']
+    )
+    parser.add_argument(
+        '--index_arg',
+        type=str,
+        help='Additional arguments to pass to FAISS index. Format as "key value"',
+        action='append',
+    )
+    parser.add_argument(
+        '--save_suffix',
+        type=str,
+        help='Suffix to append to saved data',
+    )
+    parser.add_argument(
+        '--ntraj',
+        type=int,
+        help='The number of trajectories to process. Defaults to everything in `trajectory_folder`.',
+        default=-1
+    )
+    parser.add_argument(
+        '--fmax',
+        type=float,
+        help='Force tolerance for ASE minimization.',
+        default=0.05
+    )
+    parser.add_argument(
+        '--max_steps',
+        type=int,
+        help='Maximum number of steps for ASE optimization.',
+        default=1000
+    )
+    parser.add_argument(
+        '--save_descriptors',
+        action='store_true',
+        help='Save the local environment descriptors at each minimization step.',
+    )
+
+    return parser.parse_args()
+
+
+def main(args, comm):
+    comm_rank = comm.Get_rank()
+    comm_size = comm.Get_size()
+
+    def log_on_rank_0(msg):
+        if comm_rank == 0:
+            logging.info(msg)
+
+    files = glob.glob(
+        os.path.join(args.trajectory_folder, f'*{args.trajectory_suffix}')
+        )
+
+    if args.ntraj == -1:
+        args.ntraj = len(files)
+
+    files = np.array_split(files[:args.ntraj], comm_size)[comm_rank]
+    
+    logging.info(f'[Rank {comm_rank}] received {len(files)} trajectories.')
+
+    descriptors = np.load(args.descriptors)
+    log_on_rank_0(f'Loaded descriptors from {args.descriptors}')
+    error_logs = np.load(args.error_logs)
+    # error_logs = [error_logs[f] for f in error_logs.files]
+    error_logs = [np.linalg.norm(error_logs[f], axis=-1) for f in error_logs.files]
+    print([_.shape for _ in error_logs])
+    log_on_rank_0(f'Loaded error logs from {args.error_logs}')
+
+    mn = max(1e-8, min([_.min() for _ in error_logs]))
+    mx = max([_.max() for _ in error_logs])
+    bins = np.logspace(np.log10(mn), np.log10(mx), 21)
+
+    train_pdfs, bins = logs_to_pdfs(error_logs, bins=bins)
+
+    # Parse FAISS index arguments
+    if args.index_arg is not None:
+        index_args = {}
+        for kv_pair in args.index_arg:
+            k,v = kv_pair.split(' ')
+            index_args[k] = v
+    else:
+        index_args = {}
+
+    log_on_rank_0(f'index_args: {index_args}')
+
+    if args.load_estimator_index is not None:
+        log_on_rank_0(f"Loading UQEstimator index: {args.load_estimator_index}")
+        estimator = UQEstimator(
+            train_pdfs,
+            load_index=True,
+            load_path=args.load_estimator_index
+        )
+    else:
+        log_on_rank_0("Building UQEstimator")
+        estimator = UQEstimator(
+            train_pdfs,
+            bins=bins,
+            descriptors=descriptors,
+            index_type=args.index_type,
+            index_args=index_args,
+            from_error_logs=False,
+        )
+        if args.save_estimator_index is not None:
+            log_on_rank_0(f"Saving UQEstimator index: {args.save_estimator_index}")
+            estimator.save(args.save_estimator_index)
+
+    log_on_rank_0(f'Building ASE wrapper from {args.deployed_model}')
+    model = NequIPUQWrapper.from_deployed_model(
+        args.deployed_model,
+        uq_estimator=estimator,
+        # device=f'cuda:{comm_rank}' if args.device == 'cuda' else args.device,
+        device=args.device,  # assumes jsrun -r 4 -a 1 -g 1, so that each MPI rank only sees 1 GPU
+    )
+
+    save_props = ['uq']
+    if args.save_descriptors:
+        save_props.append('descriptors')
+
+    for traj_path in files:
+        logging.info(f'[Rank {comm_rank}] Parsing trajectory from: {traj_path}')
+
+        start_snapshot = read(traj_path, index=0, parallel=False)
+        start_snapshot.calc = model
+
+        save_file = os.path.splitext(traj_path)[0]
+        save_file += "_"+args.save_suffix if args.save_suffix else ""
+        save_file += '.traj'
+
+        if os.path.exists(save_file):
+            logging.info(f'[Rank {comm_rank}] Trajectory already exists: {save_file}')
+            continue
+
+        writer = Trajectory(
+            save_file, atoms=start_snapshot, mode='w', properties=save_props,
+            master=True  # for parallel writes
+            )
+
+        dyn = FIRE(
+            start_snapshot,
+            trajectory=writer,
+            # logfile=f'rank_{comm_rank}.log',  # only rank0 can write to this...
+            master=True  # for parallel logs?
+            )
+
+        dyn.run(
+            fmax=args.fmax,
+            steps=args.max_steps,
+        )
+
+        logging.info(f'[Rank {comm_rank}] Saved trajectory to: {save_file}')
+
+    
+if __name__ == '__main__':
+    args = get_args()
+
+    comm = MPI.COMM_WORLD
+
+    main(args, comm)

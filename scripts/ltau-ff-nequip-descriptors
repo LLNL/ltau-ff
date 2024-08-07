@@ -1,0 +1,191 @@
+#!python
+import os
+import torch
+import argparse
+import numpy as np
+from tqdm import tqdm
+
+from nequip.train import Trainer
+from nequip.data import dataset_from_config
+from nequip.data.dataloader import DataLoader
+from nequip.data import AtomicData, AtomicDataDict
+from nequip.utils import Config
+
+# Set logging details
+import logging
+import sys
+
+root = logging.getLogger()
+root.setLevel(logging.INFO)
+
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+root.addHandler(handler)
+
+
+def get_args():
+    parser = argparse.ArgumentParser("Extract per-atom descriptors from a NequIP model")
+
+    parser.add_argument(
+        '--train_dir',
+        help='Path to NequIP root directory',
+        type=str,
+        required=True
+    )
+    parser.add_argument(
+        '--dataset_config',
+        help='Path to config file to use for loading dataset, if different from the one from `train_dir`.',
+        type=str,
+    )
+    parser.add_argument(
+        '--model_name',
+        help='Name of the (un-deployed) trained model',
+        type=str,
+        default='best_model.pth'
+    )
+    parser.add_argument(
+        '--prefix',
+        help='Prefix to use when saving files',
+        type=str,
+        default='',
+    )
+    parser.add_argument(
+        '--device',
+        choices=['cpu', 'cuda'],
+        default='cuda',
+    )
+    parser.add_argument(
+        '--batch_size',
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
+        '--gradient',
+        action='store_true',
+        help='Return gradient of descriptors'
+    )
+
+
+    return parser.parse_args()
+
+
+def extract_descriptors(model, batch, device, gradient=False):
+
+    batch_dict = AtomicData.to_AtomicDataDict(batch.to(device))
+
+    out = model.forward(batch_dict)
+
+    z = out[AtomicDataDict.NODE_FEATURES_KEY]  # "node_features"
+
+    if gradient:
+        print(model)
+        print(model.model.func.output_hidden_to_scalar.linear.weight)
+        # Computes dE_dz, the gradient of the energy w.r.t the node embeddings
+
+        # def wrapper(pos: torch.Tensor) -> torch.Tensor:
+        #     """Wrapper from pos to atomic energy"""
+        #     nonlocal batch_dict
+        #     batch_dict[AtomicDataDict.POSITIONS_KEY] = pos
+        #     out_data = model.forward(batch_dict)
+        #     return out_data[AtomicDataDict.PER_ATOM_ENERGY_KEY].squeeze(-1)
+
+        # z_grad = torch.autograd.functional.jacobian(
+        #     func=wrapper,
+        #     inputs=z,
+        #     create_graph=False,
+        #     vectorize=False,
+        # )
+        z_copy = z.clone()
+        z_copy.requires_grad_(True)
+        z_copy.retain_grad()
+        model.model.func.output_hidden_to_scalar.linear(z_copy).sum().backward()
+        # z_grad = torch.autograd.grad(
+        #     # outputs=[model.model.func.output_hidden_to_scalar.linear(z_copy).sum()],
+        #     # inputs=[z_copy],
+        #     outputs=[out[AtomicDataDict.TOTAL_ENERGY_KEY].sum()],
+        #     inputs=[z],
+        # )[0]
+
+        # print('Forces:', out[AtomicDataDict.FORCE_KEY])
+        # print('Energy:', out[AtomicDataDict.PER_ATOM_ENERGY_KEY])
+        # print('Energy:', out[AtomicDataDict.PER_ATOM_ENERGY_KEY].sum())
+        print('Z:', z)
+        print('z GRAD:', z.grad)
+        print('z GRAD:', z_copy.grad)
+        print('z GRAD auto:', z_grad)
+        print('GRAD-0:', (z_grad-z_grad[0]).sum(axis=1))
+        # print('GRAD SHAPE:', z_grad.shape)
+
+        raise RuntimeError
+
+
+
+    # per_atom_descriptors = torch.cat(per_atom_descriptors, dim=1)
+    splits = torch.unique(out['batch'], return_counts=True)[1]
+
+    return z, splits
+
+
+def main(args):
+    model, model_config = Trainer.load_model_from_training_session(
+        traindir=args.train_dir,
+        model_name=args.model_name
+    )
+
+    model.to(args.device)
+
+    logging.info(f'Loaded {args.model_name} from {args.train_dir}')
+
+    if args.dataset_config is None:
+        dataset_config = model_config
+    else:
+        model_r_max = model_config['r_max']
+
+        dataset_config = Config.from_file(
+            str(args.dataset_config), defaults={"r_max": model_r_max}
+        )
+
+        if dataset_config["r_max"] != model_r_max:
+            raise RuntimeError(
+                f"Dataset config has r_max={dataset_config['r_max']}, but model has r_max={model_r_max}!"
+            )
+
+    dataset = dataset_from_config(dataset_config)
+
+    dataloader = DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        # num_workers=args.num_workers,
+        shuffle=False,
+    )
+
+    natoms     = []
+    descriptors = []
+
+    for batch in tqdm(dataloader, desc='Extracting descriptors'):
+        emb, nat = extract_descriptors(model, batch, args.device, args.gradient)
+
+        nat = nat.detach().cpu().numpy()
+        natoms.append(nat)
+
+        emb = emb.detach().cpu().numpy()
+        descriptors.append(emb)
+
+    descriptors = np.concatenate(descriptors)
+
+    save_file = os.path.join(args.train_dir, f'{args.prefix}natoms')
+    np.save(save_file, np.concatenate(natoms))
+    logging.info(f'Saved natoms array to to {save_file}.npy')
+
+    save_file = os.path.join(args.train_dir, f'{args.prefix}descriptors')
+    np.save(save_file, descriptors)
+    logging.info(f'Saved descriptors array to {save_file}.npy')
+
+    logging.info(f'Descriptor shape: {descriptors.shape}')
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(args)
