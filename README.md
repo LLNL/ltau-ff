@@ -33,8 +33,14 @@ Eprint = {arXiv:2402.00853},
 
 ## Installation
 
-The only dependency of LTAU-FF is the FAISS package, which can be installed
-following [the instructions provided here](https://github.com/facebookresearch/faiss/blob/main/INSTALL.md).
+The only dependency of LTAU-FF is the FAISS package.
+We recommend first trying:
+
+```bash
+conda install -c pytorch faiss-cpu=1.8.0
+```
+
+If you encounter installation difficulties, please refer to the instructions provided by [the FAISS documentation](https://github.com/facebookresearch/faiss/blob/main/INSTALL.md).
 
 Once FAISS has been installed, you can install LTAU-FF by running the following commands:
 
