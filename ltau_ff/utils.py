@@ -69,17 +69,11 @@ def logs_to_pdfs(logs, bins, nbins=None, range_limits=None, bin_spacing='log'):
     # Normalize
     counts = counts.astype(data2D.dtype)
     bin_widths = np.diff(bins)
-    # counts /= bin_widths
-    # counts /= np.sum(counts*bin_widths)
     counts /= bin_widths[None, :]
     total = np.sum(counts*bin_widths[None, :], axis=1)
     mask = total > 0.0
     counts[mask] /= total[mask, None]  # to avoid divide by zero
-    # counts /= np.sum(counts*bin_widths[None, :], axis=1)[:, None]
-    # return normalized_counts, bins
-    # integral = (bin_widths[None, :]*counts).sum(axis=1)  # f(x)*dx
-    # counts /= integral[:, None]
-    
+
     return counts, bins
 
 

@@ -72,15 +72,15 @@ class UQEstimator:
         if bins is None:
             raise RuntimeError("Must specify bin arguments if `bins` is None")
 
-        self._pdfs = pdfs
-        self._bins = bins
+        self.pdfs = pdfs
+        self.bins = bins
         self.bin_spacing = bin_spacing
 
         # Compute bin widths and midpoints
         # TODO: assumes bins are log-spaced? may work for linear too though
         log_midpoints = (np.log10(bins[:-1]) + np.log10(bins[1:])) / 2
         self._bin_midpoints = 10**log_midpoints
-        self._bin_widths = np.diff(self._bins)
+        self._bin_widths = np.diff(self.bins)
 
         if load_index:
             self.index = faiss.read_index(index_load_path)
@@ -100,7 +100,7 @@ class UQEstimator:
                 constructor
         """
 
-        assert descriptors.shape[0] == self._pdfs.shape[0], f"Descriptors shape {descriptors.shape} does not match PDFs shape {self._pdfs.shape}"
+        assert descriptors.shape[0] == self.pdfs.shape[0], f"Descriptors shape {descriptors.shape} does not match PDFs shape {self._pdfs.shape}"
 
         if index_type == 'IndexFlatL2':
             self.index = faiss.IndexFlatL2(descriptors.shape[1])
@@ -168,7 +168,7 @@ class UQEstimator:
         """ 
         I = self.get_neighbor_indices(query_descriptors, k=topk)
 
-        p = self._pdfs[I]   # (nsamples, topk, nbins)
+        p = self.pdfs[I]   # (nsamples, topk, nbins)
         p = p.mean(axis=1)  # (nsamples, nbins)
 
         if norm:
@@ -180,22 +180,13 @@ class UQEstimator:
             return p  # (nsamples, nbins)
         else:
             # p shape: (nsamples, nbins)
-            x = np.where(self._bins >= atol)[0][0]
+            x = np.where(self.bins >= atol)[0][0]
             return np.cumsum(p, axis=1)[:, x]  # CDF evaluated at atol
 
     def predict_errors(self, query_descriptors, topk):
         pdfs = self(query_descriptors, topk)
 
-        # Getting expectation values for log-scaled bins
-        if self.bin_spacing == 'log':
-            log_midpoints = (np.log10(self._bins[:-1]) + np.log10(self._bins[1:])) / 2
-        else:
-            log_midpoints = self._bins[:-1] - self._bins[1:]
-
-        midpoints = 10**log_midpoints
-        bin_widths = np.diff(self._bins)
-
-        return (pdfs*bin_widths*midpoints).sum(axis=-1)
+        return (pdfs*self._bin_widths*self._bin_midpoints).sum(axis=-1)
 
 
     def get_neighbor_indices(self, query_descriptors, k=1):

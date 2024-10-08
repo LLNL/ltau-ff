@@ -134,7 +134,5 @@ class NequIPUQWrapper(NequIPCalculator):
             descriptors = out[AtomicDataDict.NODE_FEATURES_KEY]
             descriptors = descriptors.detach().cpu().numpy()
 
-            pdfs = self.uq_estimator(descriptors, topk, atol)
-
-            self.results['uq'] = (pdfs*self.uq_estimator._bin_widths*self.uq_estimator._bin_midpoints).mean(axis=-1)
+            self.results['uq'] = self.uq_estimator.predict_errors(descriptors, topk)
             self.results['descriptors'] = descriptors
