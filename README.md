@@ -1,31 +1,30 @@
 # LTAU
 LTAU (**L**oss **T**rajectory **A**nalysis for **U**ncertainty) is a technique for estimating the uncertainty in a model's predictions for any regression task
-by approximating the cumulative distribution function (CDF) of the model's errors
-over the course of training. The approximated CDF, combined with a similarity
+by approximating the probability distribution functions (PDFs) of the model's per-sample errors
+over the course of training. The approximated PDFs, combined with a similarity
 search algorithm in the model's descriptor space, can then be used to estimate the
-likelihood that the model's predictions on any given test point will fall below
-a chosen threshold.
+model's uncertainty on any given test point.
 
 ## LTAU-FF
-LTAU-FF (LTAU in atomistic **F**orce
+LTAU-FF (LTAU for atomistic **F**orce
 **F**ields) is the application of LTAU spefically for use with atomistic force fields. LTAU-FF has a number of advantages including:
 * **Simplicity**: just log per-sample errors at every epoch!
 * **Speed**: leveraging the [FAISS library](https://github.com/facebookresearch/faiss) for fast similarity search,
     the computational cost of LTAU-FF can be made negligible compared to a forward pass
     of the model.
 * **Utility**: in our published work, we show that LTAU-FF can be used in practical applications for:
-  * Generating an easily-calibrated UQ metric
-  * Tuning the training-validation gap
+  * Generating a well-calibrated UQ metric
+  * Detecting out-of-domain data
   * Predicting failure in the OC20 IS2RS task
 
 When publishing results using this package, please cite:
 
 ```
 @misc{2402.00853,
-Author = {Joshua A. Vita and Amit Samanta and Fei Zhou and Vincenzo Lordi},
-Title = {LTAU-FF: Loss Trajectory Analysis for Uncertainty in Atomistic Force Fields},
-Year = {2024},
-Eprint = {arXiv:2402.00853},
+    Author = {Joshua A. Vita and Amit Samanta and Fei Zhou and Vincenzo Lordi},
+    Title = {LTAU-FF: Loss Trajectory Analysis for Uncertainty in Atomistic Force Fields},
+    Year = {2024},
+    Eprint = {arXiv:2402.00853},
 }
 ```
 
@@ -59,10 +58,8 @@ Depending on demand, these patches may eventually be opened as pull requests on 
 ## Examples
 * [Basic tutorial](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/examples/tutorial.ipynb?ref_type=heads)
 
-# Supported models
-
-## Models
-The [UQEstimator](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/ltau_ff/uq_estimator.py?ref_type=heads#L5) class is model-agnostic, and will work immediately as long as you can provide the pre-computed uncertainties (or the corresponding training loss trajectories) and the per-sample descriptors.
+## Supported models
+The [UQEstimator](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/ltau_ff/uq_estimator.py?ref_type=heads#L5) class is model-agnostic, and will work immediately as long as you can provide the training loss trajectories and the per-sample descriptors.
 
 Some additionally functionality is provided specifically for the NequIP model; in particular, these include an ASE wrapper for running simulations with UQ, and helper scripts for extracting descriptors and performing energy minimization using a trained model. If you would like to add similar suppport for another model, we recommend taking a look at the following files for reference:
 
