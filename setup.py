@@ -7,6 +7,7 @@ setup(
     # install_requires=['faiss-cpu']  # likely needs to be installed separately
     scripts=[
         'scripts/ltau-ff-nequip-descriptors',
+        'scripts/ltau-ff-mace-descriptors',
         'scripts/ltau-ff-nequip-minimizer',
         ]
 )

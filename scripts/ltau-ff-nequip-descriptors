@@ -61,17 +61,11 @@ def get_args():
         type=int,
         default=1,
     )
-    parser.add_argument(
-        '--gradient',
-        action='store_true',
-        help='Return gradient of descriptors'
-    )
-
 
     return parser.parse_args()
 
 
-def extract_descriptors(model, batch, device, gradient=False):
+def extract_descriptors(model, batch, device):
 
     batch_dict = AtomicData.to_AtomicDataDict(batch.to(device))
 
@@ -79,50 +73,6 @@ def extract_descriptors(model, batch, device, gradient=False):
 
     z = out[AtomicDataDict.NODE_FEATURES_KEY]  # "node_features"
 
-    if gradient:
-        print(model)
-        print(model.model.func.output_hidden_to_scalar.linear.weight)
-        # Computes dE_dz, the gradient of the energy w.r.t the node embeddings
-
-        # def wrapper(pos: torch.Tensor) -> torch.Tensor:
-        #     """Wrapper from pos to atomic energy"""
-        #     nonlocal batch_dict
-        #     batch_dict[AtomicDataDict.POSITIONS_KEY] = pos
-        #     out_data = model.forward(batch_dict)
-        #     return out_data[AtomicDataDict.PER_ATOM_ENERGY_KEY].squeeze(-1)
-
-        # z_grad = torch.autograd.functional.jacobian(
-        #     func=wrapper,
-        #     inputs=z,
-        #     create_graph=False,
-        #     vectorize=False,
-        # )
-        z_copy = z.clone()
-        z_copy.requires_grad_(True)
-        z_copy.retain_grad()
-        model.model.func.output_hidden_to_scalar.linear(z_copy).sum().backward()
-        # z_grad = torch.autograd.grad(
-        #     # outputs=[model.model.func.output_hidden_to_scalar.linear(z_copy).sum()],
-        #     # inputs=[z_copy],
-        #     outputs=[out[AtomicDataDict.TOTAL_ENERGY_KEY].sum()],
-        #     inputs=[z],
-        # )[0]
-
-        # print('Forces:', out[AtomicDataDict.FORCE_KEY])
-        # print('Energy:', out[AtomicDataDict.PER_ATOM_ENERGY_KEY])
-        # print('Energy:', out[AtomicDataDict.PER_ATOM_ENERGY_KEY].sum())
-        print('Z:', z)
-        print('z GRAD:', z.grad)
-        print('z GRAD:', z_copy.grad)
-        print('z GRAD auto:', z_grad)
-        print('GRAD-0:', (z_grad-z_grad[0]).sum(axis=1))
-        # print('GRAD SHAPE:', z_grad.shape)
-
-        raise RuntimeError
-
-
-
-    # per_atom_descriptors = torch.cat(per_atom_descriptors, dim=1)
     splits = torch.unique(out['batch'], return_counts=True)[1]
 
     return z, splits
@@ -165,7 +115,7 @@ def main(args):
     descriptors = []
 
     for batch in tqdm(dataloader, desc='Extracting descriptors'):
-        emb, nat = extract_descriptors(model, batch, args.device, args.gradient)
+        emb, nat = extract_descriptors(model, batch, args.device)
 
         nat = nat.detach().cpu().numpy()
         natoms.append(nat)

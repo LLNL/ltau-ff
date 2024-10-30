@@ -1,0 +1,107 @@
+#!python
+import os
+import glob
+import torch
+import argparse
+import numpy as np
+from tqdm import tqdm
+from ase.io import read
+
+from mace.calculators import MACECalculator
+
+# Set logging details
+import logging
+import sys
+
+root = logging.getLogger()
+root.setLevel(logging.INFO)
+
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+root.addHandler(handler)
+
+
+def get_args():
+    parser = argparse.ArgumentParser("Extract per-atom descriptors from a NequIP model")
+
+    parser.add_argument(
+        '--train_dir',
+        help='Directory from which to load the model, and in which to save the results',
+        type=str,
+    )
+    parser.add_argument(
+        '--model_name',
+        help='Name of the (un-deployed) trained model',
+        type=str,
+    )
+    parser.add_argument(
+        '--data_glob_string',
+        help='Glob string for reading ASE files',
+        type=str,
+    )
+    parser.add_argument(
+        '--include_equivariant',
+        action='store_true',
+        help='Includes the equivariant portions of the descriptor',
+    )
+    parser.add_argument(
+        '--num_layers',
+        help='The number of layers from which to extract the descriptors. -1 uses all layers',
+        type=int,
+        default=-1,
+    )
+    parser.add_argument(
+        '--prefix',
+        help='Prefix to use when saving files',
+        type=str,
+        default='',
+    )
+    parser.add_argument(
+        '--device',
+        choices=['cpu', 'cuda'],
+        default='cuda',
+    )
+    return parser.parse_args()
+
+def main(args):
+    model_path = os.path.join(args.train_dir, args.model_name)
+    model = MACECalculator(
+        model_paths=model_path,
+        device='cuda'
+        )
+
+    logging.info(f'Loaded model from {model_path}')
+
+    images = []
+    for f in glob.glob(args.data_glob_string):
+        images.extend(read(f, index=':'))
+
+    natoms     = []
+    descriptors = []
+
+    for atoms in tqdm(images, desc='Extracting descriptors'):
+        descriptors.append(model.get_descriptors(
+            atoms,
+            invariants_only=not args.include_equivariant,
+            num_layers=args.num_layers,
+            ))
+        natoms.append(len(atoms))
+
+    descriptors = np.concatenate(descriptors)
+
+    save_file = os.path.join(args.train_dir, f'{args.prefix}natoms')
+    np.save(save_file, np.array(natoms))
+    logging.info(f'Saved natoms array to to {save_file}.npy')
+
+    save_file = os.path.join(args.train_dir, f'{args.prefix}descriptors')
+    np.save(save_file, descriptors)
+    logging.info(f'Saved descriptors array to {save_file}.npy')
+
+    logging.info(f'Descriptor shape: {descriptors.shape}')
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(args)
