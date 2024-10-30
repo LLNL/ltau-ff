@@ -61,13 +61,17 @@ Depending on demand, these patches may eventually be opened as pull requests on 
 ## Supported models
 The [UQEstimator](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/ltau_ff/uq_estimator.py?ref_type=heads#L5) class is model-agnostic, and will work immediately as long as you can provide the training loss trajectories and the per-sample descriptors.
 
-Some additionally functionality is provided specifically for the NequIP model; in particular, these include an ASE wrapper for running simulations with UQ, and helper scripts for extracting descriptors and performing energy minimization using a trained model. If you would like to add similar suppport for another model, we recommend taking a look at the following files for reference:
+Some additionally functionality is provided specifically for the NequIP and MACE models; in particular, these include an ASE wrapper for running simulations with UQ, and helper scripts for extracting descriptors and performing energy minimization using a trained model. If you would like to add similar suppport for another model, we recommend taking a look at the following files for reference:
 
-* [NequIPUQWrapper](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/ltau_ff/ase_wrapper.py?ref_type=heads#L9): for creating an ASE wrapper with UQ support.
-* [ltau-ff-nequip-descriptors](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/scripts/ltau-ff-nequip-descriptors?ref_type=heads): for extracting descriptors using the ASE wrapper.
-* [ltau-ff-nequip-minimizer](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/scripts/ltau-ff-nequip-minimizer?ref_type=heads): for performing energy minimization with the ASE wrapper while logging uncertainties
-
-
+* ASE wrappers:
+    * [NequIPUQWrapper](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/ltau_ff/ase_wrapper.py?ref_type=heads#L9)
+    * [MACEUQWrapper](https://github.com/LLNL/ltau-ff/blob/6a5e23c690093120df5f048b76a631f8d67255f5/ltau_ff/ase_wrapper_mace.py#L10)
+* Descriptor extraction:
+    * [ltau-ff-nequip-descriptors](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/scripts/ltau-ff-nequip-descriptors?ref_type=heads)
+    * [ltau-ff-mace-descriptors](https://github.com/LLNL/ltau-ff/blob/main/scripts/ltau-ff-mace-descriptors)
+* Energy minimization
+    * [ltau-ff-nequip-minimizer](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/scripts/ltau-ff-nequip-minimizer?ref_type=heads)
+    * (not implemented for MACE yet)
 
 # Contact
 If you have any questions or comments, please either open an issue or email Josh
