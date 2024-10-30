@@ -65,7 +65,6 @@ class NequIPUQWrapper(NequIPCalculator):
             system_changes=all_changes,
             uq=True,
             topk=10,
-            atol=None,
             ):
         """
         Calculate properties.
@@ -84,7 +83,6 @@ class NequIPUQWrapper(NequIPCalculator):
             all atoms.
         topk (int): the number of neighbors to average over use when performing
             UQ. default=10
-        atol (float): error threshold at which to compute the uncertainties
         """
         # call to base-class to set atoms attribute
         Calculator.calculate(self, atoms)
