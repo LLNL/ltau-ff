@@ -36,18 +36,18 @@ The only dependency of LTAU-FF is the FAISS package.
 We recommend first trying:
 
 ```bash
-conda install -c pytorch faiss-cpu=1.8.0
-```
-
-If you encounter installation difficulties, please refer to the instructions provided by [the FAISS documentation](https://github.com/facebookresearch/faiss/blob/main/INSTALL.md).
-
-Once FAISS has been installed, you can install LTAU-FF by running the following commands:
-
-```bash
 git clone https://github.com/LLNL/ltau-ff/ltau-ff.git
 cd ltau-ff
 pip install -e .
 ```
+
+which will attempt to install `faiss-cpu==1.8.0`. If this fails (which it will on POWER9 architectures), then instead try:
+
+```bash
+conda install -c faiss-cpu=1.8.0
+```
+
+If you encounter further installation difficulties with FAISS, please refer to the instructions provided by [the FAISS documentation](https://github.com/facebookresearch/faiss/blob/main/INSTALL.md).
 
 Additional software patches are provided for external packages. These do not need to be installed unless you want to use the corresponding functionality.
 * [ase_trajectory_patch.py](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/scripts/ase_trajectory_patch.py?ref_type=heads): for allowing ASE `Trajectory` objects to write non-standard properties (i.e., 'uq', and 'descriptors'). Replaces [ase.io.trajectory](https://gitlab.com/ase/ase/-/blob/master/ase/io/trajectory.py?ref_type=heads). Also requires commenting out this line in [ase.calculators.singlepoint](https://gitlab.com/ase/ase/-/blob/master/ase/calculators/singlepoint.py?ref_type=heads#L25).
