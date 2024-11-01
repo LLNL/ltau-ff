@@ -13,8 +13,6 @@ class MACEUQWrapper(MACECalculator):
     additional documentation.
     """
 
-    implemented_properties = MACECalculator.implemented_properties + ['uq']
-
     def __init__(
         self,
         model_paths: Union[list, str],
@@ -42,6 +40,11 @@ class MACEUQWrapper(MACECalculator):
             **kwargs,
         )
 
+        # doing this here because I couldn't figure out how to get it to
+        # inherit implemented_properties from the parent classes at the class
+        # level 
+        self.implemented_properties += ['uq', 'ood_metric']
+
         self.uq_estimator = uq_estimator
 
     # pylint: disable=dangerous-default-value
@@ -56,10 +59,16 @@ class MACEUQWrapper(MACECalculator):
         """
         Calculate properties.
         :param atoms: ase.Atoms object
-        :param properties: [str], properties to be computed, used by ASE internally
-        :param system_changes: [str], system changes since last calculation, used by ASE internally
-        :param uq: [bool], if True, return the UQ metric for the force predictions on all atoms
-        :param uq_neighbors: [int], the number of neighbors to use for estimating uncertainty
+        :param properties: [str], properties to be computed, used by ASE
+            internally
+        :param system_changes: [str], system changes since last calculation,
+            used by ASE internally 
+        :param uq: [bool], if True, return the UQ metric for the force
+            predictions on all atoms, as well as an out-of-domain score (the
+            average distance to the k-nearest-neighbors). These variables can
+            be found under the 'uq' and 'ood_metric' keys. 
+        :param uq_neighbors: [int], the number of neighbors to use for
+            estimating uncertainty 
         :return:
         """
         # call to base-class to set atoms attribute
@@ -80,6 +89,7 @@ class MACEUQWrapper(MACECalculator):
 
         if uq:
             ret_tensors['uq'] = np.zeros((self.num_models, len(atoms)))
+            ret_tensors['ood_metric'] = np.zeros((self.num_models, len(atoms)))
 
         for i, model in enumerate(self.models):
             batch = self._clone_batch(batch_base)
@@ -113,10 +123,13 @@ class MACEUQWrapper(MACECalculator):
                             l_max=l_max,
                         )
 
-                    ret_tensors['uq'][i] = self.uq_estimator.predict_errors(
+                    uq_score, ood_metric = self.uq_estimator.predict_errors(
                         descriptors.detach().cpu().numpy(),
                         uq_neighbors,
+                        and_distances=True,
                     )
+                    ret_tensors['uq'][i] = uq_score
+                    ret_tensors['ood_metric'][i] = ood_metric
 
             if self.model_type in ["DipoleMACE", "EnergyDipoleMACE"]:
                 ret_tensors["dipole"][i] = out["dipole"].detach()
@@ -142,6 +155,9 @@ class MACEUQWrapper(MACECalculator):
                     * self.energy_units_to_eV
                     / self.length_units_to_A
                 )
+                self.results["ood_metric"] = np.mean(
+                    ret_tensors["ood_metric"], axis=0
+                    )
             if self.num_models > 1:
                 self.results["energies"] = (
                     ret_tensors["energies"].cpu().numpy() * self.energy_units_to_eV
@@ -181,3 +197,74 @@ class MACEUQWrapper(MACECalculator):
                     .cpu()
                     .numpy()
                 )
+
+
+# """Logging for molecular dynamics."""
+# import weakref
+# from typing import IO, Any, Union
+
+# from ase import Atoms, units
+# from ase.utils import IOContext
+from ase.md import MDLogger
+from ase.parallel import world
+import time
+
+class MDLoggerWrapper(MDLogger):
+    """
+    Wraps the MDLogger to additionally log the "uq" and "ood_metric" keys
+    provided by MACEUQWrapper.
+    """
+
+    def __init__(
+        self,
+        uq_logfile: str = 'uq.log',
+        ood_metric_logfile: str = 'ood_metric.log',
+        comm=world,
+        *args,
+        **kwargs
+    ):
+        """
+        Args:
+
+            uq_logfile: str
+                The file in which to log the uq metric.
+
+            ood_metric_logfile: str
+                The file in which to log the OOD metric.
+        """
+        super().__init__(*args, **kwargs)
+
+        self.uq_logfile = self.openfile(
+            file=uq_logfile,
+            mode=self.logfile.mode,  # initialized in parent class
+            comm=comm
+            )
+
+        self.ood_metric_logfile = self.openfile(
+            file=ood_metric_logfile,
+            mode=self.logfile.mode,  # initialized in parent class
+            comm=comm
+            )
+
+    def __del__(self):
+        self.close()
+
+    def __call__(self):
+        super().__call__()
+
+        if not isinstance(self.atoms.calc, MACEUQWrapper):
+            raise RuntimeError("You must use atoms.set_calculator(model)"
+                               "with a MACEUQWrapper calculator before "
+                               "trying to log UQ results.")
+
+        uq = self.atoms.calc.get_property('uq')
+        ood_metric = self.atoms.calc.get_property('ood_metric')
+
+        print(f'{time.time():.2f}: {uq.shape=}', flush=True)
+
+        # NOTE: the files are raw text files so that we can append to them
+        self.uq_logfile.write(' '.join(map(str, uq)))
+        self.uq_logfile.flush()
+
+        self.ood_metric_logfile.write(' '.join(map(str, ood_metric)))
+        self.ood_metric_logfile.flush()

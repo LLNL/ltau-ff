@@ -144,7 +144,14 @@ class UQEstimator:
             raise NotImplementedError(f"Indexer '{index_type}' is not supported yet.")
 
 
-    def __call__(self, query_descriptors, topk, atol=None, norm=False):
+    def __call__(
+            self,
+            query_descriptors,
+            topk,
+            atol=None,
+            norm=False,
+            return_neighbor_distances=False,
+            ):
         """Returns the predicted PDF, averaged over each sample from
         `query_descriptors` using the `topk` nearest neighbors.
 
@@ -165,8 +172,18 @@ class UQEstimator:
                 If True, normalizes the PDFs so that they integrate to a value
                 of 1. Default is False, since PDFs are assumed to already have
                 been normalized.
+
+            return_neighbor_distances: bool
+                If True, additionally returns the average distance to the
+                k-nearest neighbors. This can be useful for out-of-domain
+                detection.
         """ 
-        I = self.get_neighbor_indices(query_descriptors, k=topk)
+        I = self.get_neighbor_indices(
+            query_descriptors, k=topk, and_distances=return_neighbor_distances
+            )
+        if return_neighbor_distances:
+            I, D = I  # unpack the tuple
+            D = D.mean(axis=1)  # return the average k-NN distance
 
         p = self.pdfs[I]   # (nsamples, topk, nbins)
         p = p.mean(axis=1)  # (nsamples, nbins)
@@ -177,22 +194,32 @@ class UQEstimator:
 
         # NOTE: need to check which axis to avg over if XYZ coords included
         if atol is None:
-            return p  # (nsamples, nbins)
+            return (p, D) if return_neighbor_distances else p  # (nsamples, nbins)
         else:
             # p shape: (nsamples, nbins)
             x = np.where(self.bins >= atol)[0][0]
-            return np.cumsum(p, axis=1)[:, x]  # CDF evaluated at atol
+            v = np.cumsum(p, axis=1)[:, x]  # CDF evaluated at atol
+            return (v, D) if return_neighbor_distances else v
 
-    def predict_errors(self, query_descriptors, topk):
-        pdfs = self(query_descriptors, topk)
+    def predict_errors(self, query_descriptors, topk, and_distances=False):
+        pdfs = self(
+            query_descriptors, topk, return_neighbor_distances=and_distances
+            )
 
-        return (pdfs*self._bin_widths*self._bin_midpoints).sum(axis=-1)
+        if and_distances:
+            pdfs, D = pdfs
+            return (pdfs*self._bin_widths*self._bin_midpoints).sum(axis=-1), D
+        else:
+            return (pdfs*self._bin_widths*self._bin_midpoints).sum(axis=-1)
 
 
-    def get_neighbor_indices(self, query_descriptors, k=1):
-        _, I = self.index.search(query_descriptors, k=k)
-        return I
+    def get_neighbor_indices(
+            self, query_descriptors, k=1, and_distances=False
+            ):
 
+        D, I = self.index.search(query_descriptors, k=k)
+
+        return (I, D) if and_distances else I
 
     def save(self, filename):
         faiss.write_index(self.index, filename)
