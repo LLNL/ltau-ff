@@ -44,7 +44,7 @@ pip install -e .
 which will attempt to install `faiss-cpu==1.8.0`. If this fails (which it will on POWER9 architectures), then instead try:
 
 ```bash
-conda install -c faiss-cpu=1.8.0
+conda install faiss-cpu=1.8.0
 ```
 
 If you encounter further installation difficulties with FAISS, please refer to the instructions provided by [the FAISS documentation](https://github.com/facebookresearch/faiss/blob/main/INSTALL.md).
