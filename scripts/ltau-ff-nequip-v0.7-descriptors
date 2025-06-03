@@ -1,0 +1,145 @@
+#!python
+"""
+This is a version of ltau-ff-nequip-descriptors that was updated for nequip >
+0.7.0, which included breaking changes.
+"""
+import os
+import torch
+import argparse
+import numpy as np
+from tqdm import tqdm
+
+# from nequip.train.trainer import Trainer
+from nequip.model.saved_models import ModelFromCheckpoint
+from nequip.model.utils import _EAGER_MODEL_KEY
+from nequip.utils.global_state import set_global_state
+from nequip.data._keys import NODE_FEATURES_KEY
+import omegaconf
+from omegaconf import OmegaConf
+from hydra.utils import instantiate
+from nequip.data import AtomicDataDict, from_dict, compute_neighborlist_
+# from nequip.data import dataset_from_config
+# from nequip.data.dataloader import DataLoader
+# from nequip.utils import Config
+
+# Set logging details
+import logging
+import sys
+
+root = logging.getLogger()
+root.setLevel(logging.INFO)
+
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+root.addHandler(handler)
+
+
+def get_args():
+    parser = argparse.ArgumentParser("Extract per-atom descriptors from a NequIP model")
+
+    parser.add_argument(
+        '--train_dir',
+        help='Path to NequIP root directory',
+        type=str,
+        required=True
+    )
+    parser.add_argument(
+        '--dataset_config',
+        help='Path to config file to use for loading dataset.',
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        '--model_name',
+        help='Name of the (un-deployed) trained model',
+        type=str,
+        default='best_model.pth'
+    )
+    parser.add_argument(
+        '--prefix',
+        help='Prefix to use when saving files',
+        type=str,
+        default='',
+    )
+    parser.add_argument(
+        '--device',
+        choices=['cpu', 'cuda'],
+        default='cuda',
+    )
+    parser.add_argument(
+        '--batch_size',
+        type=int,
+        default=1,
+    )
+
+    return parser.parse_args()
+
+
+def extract_descriptors(model, batch, device):
+
+    batch_dict = AtomicDataDict.to_(
+        # compute_neighborlist_(from_dict(data), r_max=model_r_max),
+        from_dict(batch),
+        args.device,
+    )
+
+    out = model.forward(batch_dict)
+
+    z = out[NODE_FEATURES_KEY]  # "node_features"
+
+    splits = torch.unique(out['batch'], return_counts=True)[1]
+
+    return z, splits
+
+
+def main(args):
+    set_global_state()
+
+    model = ModelFromCheckpoint(
+        os.path.join(args.train_dir, args.model_name),
+        compile_mode=_EAGER_MODEL_KEY
+        )['sole_model']  # ModuleDict -> GraphModel
+    model.to(args.device)
+    logging.info(f'{model=}')
+    logging.info(f'Loaded {args.model_name} from {args.train_dir}')
+
+    dataset_config = omegaconf.OmegaConf.load(args.dataset_config)
+
+    data = OmegaConf.to_container(dataset_config.data, resolve=True)
+    datamodule = instantiate(data, _recursive_=False)
+
+    datamodule.setup(stage='fit')
+    dataloader = datamodule.train_dataloader()
+    logging.info(f'{dataloader=}')
+    logging.info(f'{dataloader.dataset=}')
+
+    natoms     = []
+    descriptors = []
+
+    for batch in tqdm(dataloader, desc='Extracting descriptors'):
+        emb, nat = extract_descriptors(model, batch, args.device)
+
+        nat = nat.detach().cpu().numpy()
+        natoms.append(nat)
+
+        emb = emb.detach().cpu().numpy()
+        descriptors.append(emb)
+
+    descriptors = np.concatenate(descriptors)
+
+    save_file = os.path.join(args.train_dir, f'{args.prefix}natoms')
+    np.save(save_file, np.concatenate(natoms))
+    logging.info(f'Saved natoms array to to {save_file}.npy')
+
+    save_file = os.path.join(args.train_dir, f'{args.prefix}descriptors')
+    np.save(save_file, descriptors)
+    logging.info(f'Saved descriptors array to {save_file}.npy')
+
+    logging.info(f'Descriptor shape: {descriptors.shape}')
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(args)
