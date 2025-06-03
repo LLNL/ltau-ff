@@ -44,14 +44,14 @@ pip install -e .
 which will attempt to install `faiss-cpu==1.8.0`. If this fails (which it will on POWER9 architectures), then instead try:
 
 ```bash
-conda install -c faiss-cpu=1.8.0
+conda install faiss-cpu=1.8.0
 ```
 
 If you encounter further installation difficulties with FAISS, please refer to the instructions provided by [the FAISS documentation](https://github.com/facebookresearch/faiss/blob/main/INSTALL.md).
 
 Additional software patches are provided for external packages. These do not need to be installed unless you want to use the corresponding functionality.
-* [ase_trajectory_patch.py](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/scripts/ase_trajectory_patch.py?ref_type=heads): for allowing ASE `Trajectory` objects to write non-standard properties (i.e., 'uq', and 'descriptors'). Replaces [ase.io.trajectory](https://gitlab.com/ase/ase/-/blob/master/ase/io/trajectory.py?ref_type=heads). Also requires commenting out this line in [ase.calculators.singlepoint](https://gitlab.com/ase/ase/-/blob/master/ase/calculators/singlepoint.py?ref_type=heads#L25).
-* [nequip_trainer_patch.py](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/scripts/nequip_trainer_patch.py?ref_type=heads): for logging per-sample energy/force errors at every epoch while training a NequIP model. Replaces [nequip.train.trainer](https://github.com/mir-group/nequip/blob/main/nequip/train/trainer.py).
+* [ase_trajectory_patch.py](https://github.com/LLNL/ltau-ff/blob/main/scripts/ase_trajectory_patch.py): for allowing ASE `Trajectory` objects to write non-standard properties (i.e., 'uq', and 'descriptors'). Replaces [ase.io.trajectory](https://gitlab.com/ase/ase/-/blob/master/ase/io/trajectory.py?ref_type=heads). Also requires commenting out this line in [ase.calculators.singlepoint](https://gitlab.com/ase/ase/-/blob/master/ase/calculators/singlepoint.py?ref_type=heads#L25).
+* [nequip_trainer_patch.py](https://github.com/LLNL/ltau-ff/blob/main/scripts/nequip_trainer_patch.py): for logging per-sample energy/force errors at every epoch while training a NequIP model. Replaces [nequip.train.trainer](https://github.com/mir-group/nequip/blob/main/nequip/train/trainer.py).
 
 Depending on demand, these patches may eventually be opened as pull requests on their respective repositories.
 
@@ -67,10 +67,10 @@ Some additionally functionality is provided specifically for the NequIP and MACE
     * [NequIPUQWrapper](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/ltau_ff/ase_wrapper.py?ref_type=heads#L9)
     * [MACEUQWrapper](https://github.com/LLNL/ltau-ff/blob/6a5e23c690093120df5f048b76a631f8d67255f5/ltau_ff/ase_wrapper_mace.py#L10)
 * Descriptor extraction:
-    * [ltau-ff-nequip-descriptors](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/scripts/ltau-ff-nequip-descriptors?ref_type=heads)
+    * [ltau-ff-nequip-descriptors](https://github.com/LLNL/ltau-ff/blob/main/scripts/ltau-ff-nequip-descriptors)
     * [ltau-ff-mace-descriptors](https://github.com/LLNL/ltau-ff/blob/main/scripts/ltau-ff-mace-descriptors)
 * Energy minimization
-    * [ltau-ff-nequip-minimizer](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/scripts/ltau-ff-nequip-minimizer?ref_type=heads)
+    * [ltau-ff-nequip-minimizer](https://github.com/LLNL/ltau-ff/blob/main/scripts/ltau-ff-nequip-minimizer)
     * (not implemented for MACE yet)
 
 # Contact
