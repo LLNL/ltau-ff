@@ -2,6 +2,9 @@
 """
 This is a version of ltau-ff-nequip-descriptors that was updated for nequip >
 0.7.0, which included breaking changes.
+
+Usage notes:
+- dataset should be under 'test_dataset_path' in config
 """
 import os
 import torch
@@ -9,7 +12,6 @@ import argparse
 import numpy as np
 from tqdm import tqdm
 
-# from nequip.train.trainer import Trainer
 from nequip.model.saved_models import ModelFromCheckpoint
 from nequip.model.utils import _EAGER_MODEL_KEY
 from nequip.utils.global_state import set_global_state
@@ -17,10 +19,7 @@ from nequip.data._keys import NODE_FEATURES_KEY
 import omegaconf
 from omegaconf import OmegaConf
 from hydra.utils import instantiate
-from nequip.data import AtomicDataDict, from_dict, compute_neighborlist_
-# from nequip.data import dataset_from_config
-# from nequip.data.dataloader import DataLoader
-# from nequip.utils import Config
+from nequip.data import AtomicDataDict, from_dict
 
 # Set logging details
 import logging
@@ -110,8 +109,8 @@ def main(args):
     data = OmegaConf.to_container(dataset_config.data, resolve=True)
     datamodule = instantiate(data, _recursive_=False)
 
-    datamodule.setup(stage='fit')
-    dataloader = datamodule.train_dataloader()
+    datamodule.setup(stage='test')
+    dataloader = datamodule.test_dataloader()[0]
     logging.info(f'{dataloader=}')
     logging.info(f'{dataloader.dataset=}')
 
