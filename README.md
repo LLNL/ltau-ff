@@ -73,6 +73,10 @@ Some additionally functionality is provided specifically for the NequIP and MACE
     * [ltau-ff-nequip-minimizer](https://github.com/LLNL/ltau-ff/blob/main/scripts/ltau-ff-nequip-minimizer)
     * (not implemented for MACE yet)
 
+# FAQ
+* **Can LTAU be used with pre-trained models?**
+    * Yes, but you still need to have a method for sampling an ensemble of model parameters. One possibility would be to run Monte Carlo sampling, perturbing the model parameters and logging the per-atom errors. This is the approach taken in ["Bayesian Ensemble Approach to Error Estimation of Interatomic Potentials" by Frederiksen et. al](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.93.165501).
+
 # Contact
 If you have any questions or comments, please either open an issue or email Josh
 Vita (vita1@llnl.gov)
