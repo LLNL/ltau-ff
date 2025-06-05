@@ -51,7 +51,16 @@ If you encounter further installation difficulties with FAISS, please refer to t
 
 Additional software patches are provided for external packages. These do not need to be installed unless you want to use the corresponding functionality.
 * [ase_trajectory_patch.py](https://github.com/LLNL/ltau-ff/blob/main/scripts/ase_trajectory_patch.py): for allowing ASE `Trajectory` objects to write non-standard properties (i.e., 'uq', and 'descriptors'). Replaces [ase.io.trajectory](https://gitlab.com/ase/ase/-/blob/master/ase/io/trajectory.py?ref_type=heads). Also requires commenting out this line in [ase.calculators.singlepoint](https://gitlab.com/ase/ase/-/blob/master/ase/calculators/singlepoint.py?ref_type=heads#L25).
-* [nequip_trainer_patch.py](https://github.com/LLNL/ltau-ff/blob/main/scripts/nequip_trainer_patch.py): for logging per-sample energy/force errors at every epoch while training a NequIP model. Replaces [nequip.train.trainer](https://github.com/mir-group/nequip/blob/main/nequip/train/trainer.py).
+* nequip
+    * (only needed for nequip < v0.7.0) [nequip_trainer_patch.py](https://github.com/LLNL/ltau-ff/blob/main/scripts/nequip_trainer_patch.py): for logging per-sample energy/force errors at every epoch while training a NequIP model. Replaces [nequip.train.trainer](https://github.com/mir-group/nequip/blob/main/nequip/train/trainer.py).
+    * [nequip_modules.py](https://github.com/LLNL/ltau-ff/blob/main/scripts/nequip_modules.py): custom trainer and dataset modules which allow for logging per-atom errors at each epoch. Currently only tested on 1 GPU. You can use these when training your nequip-style model by using these blocks in your config file:
+    ```
+    training_module:
+        _target_: ltau_nequip_modules.LTAULightningModule
+        error_save_dir: ${hydra:runtime.output_dir}/${trainer.logger.name}
+    data:
+        _target_: ltau_nequip_modules.ASEDataModuleWithID 
+    ```
 
 Depending on demand, these patches may eventually be opened as pull requests on their respective repositories.
 
