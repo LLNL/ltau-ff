@@ -56,16 +56,16 @@ Additional software patches are provided for external packages. These do not nee
 Depending on demand, these patches may eventually be opened as pull requests on their respective repositories.
 
 ## Examples
-* [Basic tutorial](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/examples/tutorial.ipynb?ref_type=heads)
+* [Basic tutorial](https://github.com/LLNL/ltau-ff/blob/main/examples/tutorial.ipynb)
 
 ## Supported models
-The [UQEstimator](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/ltau_ff/uq_estimator.py?ref_type=heads#L5) class is model-agnostic, and will work immediately as long as you can provide the training loss trajectories and the per-sample descriptors.
+The [UQEstimator](https://github.com/LLNL/ltau-ff/blob/main/ltau_ff/uq_estimator.py) class is model-agnostic, and will work immediately as long as you can provide the training loss trajectories and the per-sample descriptors.
 
 Some additionally functionality is provided specifically for the NequIP and MACE models; in particular, these include an ASE wrapper for running simulations with UQ, and helper scripts for extracting descriptors and performing energy minimization using a trained model. If you would like to add similar suppport for another model, we recommend taking a look at the following files for reference:
 
 * ASE wrappers:
-    * [NequIPUQWrapper](https://github.com/LLNL/ltau-ff/ltau-ff/-/blob/main/ltau_ff/ase_wrapper.py?ref_type=heads#L9)
-    * [MACEUQWrapper](https://github.com/LLNL/ltau-ff/blob/6a5e23c690093120df5f048b76a631f8d67255f5/ltau_ff/ase_wrapper_mace.py#L10)
+    * [NequIPUQWrapper](https://github.com/LLNL/ltau-ff/blob/main/ltau_ff/ase_wrapper.py)
+    * [MACEUQWrapper](https://github.com/LLNL/ltau-ff/blob/main/ltau_ff/ase_wrapper_mace.py)
 * Descriptor extraction:
     * [ltau-ff-nequip-descriptors](https://github.com/LLNL/ltau-ff/blob/main/scripts/ltau-ff-nequip-descriptors)
     * [ltau-ff-mace-descriptors](https://github.com/LLNL/ltau-ff/blob/main/scripts/ltau-ff-mace-descriptors)
