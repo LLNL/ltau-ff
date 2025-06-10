@@ -77,6 +77,7 @@ Some additionally functionality is provided specifically for the NequIP and MACE
     * [MACEUQWrapper](https://github.com/LLNL/ltau-ff/blob/main/ltau_ff/ase_wrapper_mace.py)
 * Descriptor extraction:
     * [ltau-ff-nequip-descriptors](https://github.com/LLNL/ltau-ff/blob/main/scripts/ltau-ff-nequip-descriptors)
+    * [ltau-ff-nequip-v0.7-descriptors](https://github.com/LLNL/ltau-ff/blob/main/scripts/ltau-ff-nequip-v0.7-descriptors) (for use with `nequip >= 0.7.0`)
     * [ltau-ff-mace-descriptors](https://github.com/LLNL/ltau-ff/blob/main/scripts/ltau-ff-mace-descriptors)
 * Energy minimization
     * [ltau-ff-nequip-minimizer](https://github.com/LLNL/ltau-ff/blob/main/scripts/ltau-ff-nequip-minimizer)
